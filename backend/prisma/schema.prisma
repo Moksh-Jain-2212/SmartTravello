@@ -1,0 +1,198 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String           @id @default(auto()) @map("_id") @db.ObjectId
+  email            String           @unique
+  password_hash    String
+  name             String
+  avatar_url       String?
+  theme_preference String?
+  google_token     String?
+  created_at       DateTime         @default(now())
+  updated_at       DateTime         @updatedAt
+  notifications    Notification[]
+  trips            Trip[]
+  trip_comparisons TripComparison[]
+}
+
+model Trip {
+  id                   String           @id @default(auto()) @map("_id") @db.ObjectId
+  user_id              String           @db.ObjectId
+  title                String
+  origin               String           @default("Unknown")
+  origin_coords        Json             @default("{}")
+  destination          String
+  destination_coords   Json
+  start_date           DateTime
+  end_date             DateTime
+  adults               Int              @default(1)
+  status               String
+  total_budget         Float
+  summary              Json
+  orchestrator_summary Json?
+  flights_data    Json?            @default("null")      // JSON data for flights
+  hotels_data     Json?            @default("null")      // JSON data for hotels
+  trains_data       Json?          @default("null")
+  news_data       Json?            @default("null")      // JSON data for news/articles
+   
+  created_at           DateTime         @default(now())
+  updated_at           DateTime         @updatedAt
+
+  itinerary_items      ItineraryItem[]
+  itinerary            Itinerary?       // one-to-one
+  weather_data         WeatherData[]
+  routes               Route[]
+  events               Event[]
+  budget_items         BudgetItem[]
+  agent_tasks          AgentTask[]
+  notifications        Notification[]
+
+  user                 User             @relation(fields: [user_id], references: [id])
+}
+
+model Itinerary {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  trip_id        String   @unique @db.ObjectId
+  tool           String
+  result_summary String
+  full_plan      Json
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  trip Trip @relation(fields: [trip_id], references: [id])
+}
+
+model ItineraryItem {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  trip_id         String   @db.ObjectId
+  day_number      Int
+  title           String
+  description     String
+  start_time      DateTime
+  end_time        DateTime
+  location        String
+  location_coords Json
+  category        String
+  estimated_cost  Float
+  sort_order      Int
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  trip Trip @relation(fields: [trip_id], references: [id])
+}
+
+model WeatherData {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  trip_id          String   @db.ObjectId
+  location         String
+  date             DateTime
+  temperature_high Float
+  temperature_low  Float
+  conditions       String
+  precipitation    Float
+  weather_json     Json
+  fetched_at       DateTime @default(now())
+
+  trip Trip @relation(fields: [trip_id], references: [id])
+}
+
+model Route {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  trip_id          String   @db.ObjectId
+  from_location    String
+  to_location      String
+  transport_mode   String
+  distance_km      Float
+  duration_minutes Int
+  estimated_cost   Float
+  route_data       Json
+  full_response    Json?
+  created_at       DateTime @default(now())
+
+  trip Trip @relation(fields: [trip_id], references: [id])
+}
+
+model Event {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  trip_id         String   @db.ObjectId
+  title           String
+  venue           String?
+  description     String?
+  location        String
+  start_datetime  DateTime
+  end_datetime    DateTime
+  category        String?
+  price           Float?
+  booking_url     String?
+  is_recommended  Boolean  @default(false)
+  relevance_score Float?   @default(0)
+  raw_json        Json?
+  created_at      DateTime @default(now())
+
+  trip Trip @relation(fields: [trip_id], references: [id])
+}
+
+model BudgetItem {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  trip_id          String   @db.ObjectId
+  category         String   // e.g., "flights", "accommodation"
+  item_name        String   // same as category or custom name
+  estimated_amount Float
+  actual_amount    Float   @default(0)
+  status           String  @default("Estimated") // "Estimated", "Confirmed", etc.
+  notes            String? // optional notes
+
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  // Relation to Trip
+  trip             Trip     @relation(fields: [trip_id], references: [id])
+}
+
+
+model AgentTask {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  trip_id       String    @db.ObjectId
+  agent_type    String
+  task_data     Json
+  result_data   Json?
+  status        String
+  started_at    DateTime?
+  completed_at  DateTime?
+  error_message String?
+
+  trip Trip @relation(fields: [trip_id], references: [id])
+}
+
+model Notification {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  user_id    String   @db.ObjectId
+  trip_id    String?  @db.ObjectId
+  type       String
+  title      String
+  message    String
+  is_read    Boolean  @default(false)
+  created_at DateTime @default(now())
+
+  trip Trip? @relation(fields: [trip_id], references: [id])
+  user User  @relation(fields: [user_id], references: [id])
+}
+
+
+model TripComparison {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  user_id         String   @db.ObjectId
+  comparison_name String
+  destinations    Json
+  criteria        Json
+  results         Json
+  created_at      DateTime @default(now())
+  user            User     @relation(fields: [user_id], references: [id])
+}
