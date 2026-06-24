@@ -6,8 +6,10 @@ import prisma from "../config/db.js";
 // --------------------
 // Zod validation schema
 // --------------------
+const MongoObjectId = z.string().regex(/^[a-f\d]{24}$/i, "Invalid MongoDB ObjectId");
+
 const MapsArgs = z.object({
-  tripId: z.string().uuid(),
+  tripId: MongoObjectId,
   action: z.enum(["directions", "nearby", "place_details", "distance_matrix"]).default("directions"),
   mode: z.enum(["driving", "walking", "transit", "bicycling"]).optional().default("driving"),
   placeType: z.string().optional(),

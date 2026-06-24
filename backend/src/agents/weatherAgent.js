@@ -6,8 +6,10 @@ import prisma from "../config/db.js";
 // --------------------
 // Validate args
 // --------------------
+const MongoObjectId = z.string().regex(/^[a-f\d]{24}$/i, "Invalid MongoDB ObjectId");
+
 const WeatherArgs = z.object({
-  tripId: z.string().uuid(),
+  tripId: MongoObjectId,
   destination: z.string().min(1),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
@@ -46,19 +48,15 @@ async function weatherExecute(args) {
 
   try {
     // Use Google Weather via SerpApi
-    const response = await new Promise((resolve, reject) => {
-      getJson({
-        engine: "google",
-        q: `weather for ${destination}`,
-        api_key: apiKey,
-      }, (result) => {
-        if (!result) {
-          reject(new Error("No response from SerpApi for weather"));
-          return;
-        }
-        resolve(result);
-      });
+    const response = await getJson({
+      engine: "google",
+      q: `weather for ${destination}`,
+      api_key: apiKey,
     });
+
+    if (!response) {
+      throw new Error("No response from SerpApi for weather");
+    }
 
     // --- CRITICAL FIX STARTS HERE ---
     const weatherInfo = response.weather || response.answer_box || {};

@@ -4,8 +4,10 @@ import { z } from "zod";
 // --------------------
 // Argument schema
 // --------------------
+const MongoObjectId = z.string().regex(/^[a-f\d]{24}$/i, "Invalid MongoDB ObjectId");
+
 const BudgetArgs = z.object({
-  tripId: z.string().uuid(),
+  tripId: MongoObjectId,
 });
 
 // --------------------

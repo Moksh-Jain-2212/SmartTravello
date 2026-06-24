@@ -5,8 +5,10 @@ import { getJson } from "serpapi";
 // --------------------
 // Validation schema
 // --------------------
+const MongoObjectId = z.string().regex(/^[a-f\d]{24}$/i, "Invalid MongoDB ObjectId");
+
 const EventArgs = z.object({
-  tripId: z.string().uuid(),
+  tripId: MongoObjectId,
   destination: z.string().min(1),
   date: z.string().optional(),
 });
@@ -26,21 +28,17 @@ async function eventExecute(args) {
     console.log(`[EventsAgent] 🔍 Searching: "${query}"`);
 
     // Fetch events via SerpApi
-    const json = await new Promise((resolve, reject) => {
-      getJson(
-        {
-          engine: "google_events",
-          q: query,
-          hl: "en",
-          gl: "us",
-          api_key: apiKey,
-        },
-        (res) => {
-          if (!res) reject(new Error("No response from SerpApi"));
-          else resolve(res);
-        }
-      );
+    const json = await getJson({
+      engine: "google_events",
+      q: query,
+      hl: "en",
+      gl: "us",
+      api_key: apiKey,
     });
+
+    if (!json) {
+      throw new Error("No response from SerpApi");
+    }
 
     const events = json.events_results || [];
 

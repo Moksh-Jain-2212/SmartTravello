@@ -87,21 +87,20 @@ async function flightExecute(args) {
         api_key: process.env.SERPAPI_KEY,
     };
     
-    console.log("[FlightAgent] Sending request to SerpApi with params:", requestParams);
-    
-    const response = await new Promise((resolve, reject) => {
-      getJson(requestParams, (result) => {
-        if (!result) {
-          reject(new Error("No response from SerpApi"));
-          return;
-        }
-        if (result.error) {
-          reject(new Error(result.error));
-          return;
-        }
-        resolve(result);
-      });
+    console.log("[FlightAgent] Sending request to SerpApi with params:", {
+      ...requestParams,
+      api_key: requestParams.api_key ? "[configured]" : "[missing]",
     });
+    
+    const response = await getJson(requestParams);
+
+    if (!response) {
+      throw new Error("No response from SerpApi");
+    }
+
+    if (response.error) {
+      throw new Error(response.error);
+    }
 
     console.log(`[FlightAgent] Received successful response from SerpApi.`);
     

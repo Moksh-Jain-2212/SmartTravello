@@ -7,8 +7,10 @@ import { generateGroqText } from "../config/groq.js";
 // --------------------
 // Argument schema
 // --------------------
+const MongoObjectId = z.string().regex(/^[a-f\d]{24}$/i, "Invalid MongoDB ObjectId");
+
 const ItineraryArgs = z.object({
-  tripId: z.string().uuid(),
+  tripId: MongoObjectId,
   destination: z.string().min(1),
   days: z.number().min(1),
   startDate: z.string().optional(),

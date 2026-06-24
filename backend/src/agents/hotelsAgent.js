@@ -26,34 +26,28 @@ async function hotelsExecute(args) {
   try {
     console.log(`[HotelsAgent] Searching hotels in: ${destination} from ${checkin} to ${checkout}`);
 
-    const response = await new Promise((resolve, reject) => {
-      getJson({
-        engine: "google_hotels",
-        q: `hotels in ${destination}`,
-        check_in_date: checkin,
-        check_out_date: checkout,
-        adults: adults.toString(),
-        children: children > 0 ? children.toString() : undefined,
-        rooms: rooms.toString(),
-        currency: currency,
-        sort: sortBy === 'price_low' ? 'price_low' :
-              sortBy === 'price_high' ? 'price_high' :
-              sortBy === 'rating' ? 'review_score' : 'relevance',
-        api_key: process.env.SERPAPI_KEY,
-      }, (result) => {
-        if (!result) {
-          reject(new Error("No response from SerpApi"));
-          return;
-        }
-
-        if (result.error) {
-          reject(new Error(result.error));
-          return;
-        }
-
-        resolve(result);
-      });
+    const response = await getJson({
+      engine: "google_hotels",
+      q: `hotels in ${destination}`,
+      check_in_date: checkin,
+      check_out_date: checkout,
+      adults: adults.toString(),
+      children: children > 0 ? children.toString() : undefined,
+      rooms: rooms.toString(),
+      currency: currency,
+      sort: sortBy === 'price_low' ? 'price_low' :
+            sortBy === 'price_high' ? 'price_high' :
+            sortBy === 'rating' ? 'review_score' : 'relevance',
+      api_key: process.env.SERPAPI_KEY,
     });
+
+    if (!response) {
+      throw new Error("No response from SerpApi");
+    }
+
+    if (response.error) {
+      throw new Error(response.error);
+    }
 
     const hotels = response.properties?.map((hotel, index) => ({
       id: `hotel_${index + 1}`,

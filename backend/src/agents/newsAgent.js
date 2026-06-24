@@ -21,27 +21,21 @@ async function newsExecute(args) {
   try {
     console.log(`[NewsAgent] Searching news for: ${destination}`);
 
-    const response = await new Promise((resolve, reject) => {
-      getJson({
-        engine: "google_news",
-        q: `${destination} travel tourism attractions`,
-        tbs: `qdr:${timeRange}`,
-        num: maxResults,
-        api_key: process.env.SERPAPI_KEY,
-      }, (result) => {
-        if (!result) {
-          reject(new Error("No response from SerpApi"));
-          return;
-        }
-
-        if (result.error) {
-          reject(new Error(result.error));
-          return;
-        }
-
-        resolve(result);
-      });
+    const response = await getJson({
+      engine: "google_news",
+      q: `${destination} travel tourism attractions`,
+      tbs: `qdr:${timeRange}`,
+      num: maxResults,
+      api_key: process.env.SERPAPI_KEY,
     });
+
+    if (!response) {
+      throw new Error("No response from SerpApi");
+    }
+
+    if (response.error) {
+      throw new Error(response.error);
+    }
 
     // Process news results
     const newsArticles = response.news_results?.map((article, index) => ({
