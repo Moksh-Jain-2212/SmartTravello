@@ -15,7 +15,7 @@ AI-powered full-stack travel planning platform for personalized trips, budgets, 
 
 ## Project Description
 
-SmartTravello lets a user describe a trip in natural language and turns that prompt into a stored, explorable travel plan. The backend parses the prompt with Groq, geocodes the route with Geoapify, saves the trip in MongoDB through Prisma, and then runs a sequential multi-agent planning pipeline.
+SmartTravello lets a user describe a trip in natural language and turns that prompt into a stored, explorable travel plan. The backend parses the prompt with Groq, falls back to a deterministic parser when AI parsing is unavailable, geocodes the route with Geoapify, saves the trip in MongoDB through Prisma, and then runs a sequential multi-agent planning pipeline.
 
 The frontend is a Next.js dashboard with authentication, trip creation, trip comparison, rich trip detail pages, charts, route maps, PDF itinerary download, Google Calendar sync, dark/light theme support, and an authenticated AI travel chatbot.
 
@@ -25,6 +25,7 @@ The frontend is a Next.js dashboard with authentication, trip creation, trip com
 
 - Natural-language trip creation from prompts such as "Plan a 5-day trip to Mumbai from Delhi starting October 15th for 2 adults with a budget of $2000".
 - Groq-powered prompt parsing into structured trip fields: title, origin, destination, dates, travelers, budget, and status.
+- Fallback prompt parsing and future-date normalization so common prompts can still create trips when Groq parsing fails or returns a past year.
 - Geoapify geocoding for origin and destination coordinates.
 - Multi-agent orchestration that attempts every planning agent in a fixed sequence and logs each run in `AgentTask`.
 - Orchestrator responses report `COMPLETE_SUCCESS`, `PARTIAL_SUCCESS`, or `FAILED`; stored trips are updated to `COMPLETED` or `FAILED`.
@@ -39,7 +40,7 @@ The frontend is a Next.js dashboard with authentication, trip creation, trip com
 - Budget agent: calculates a category-level trip budget using available flight and hotel data, with estimated fallback costs.
 - Events agent: fetches destination events through SerpApi Google Events and stores them in the database.
 - Itinerary agent: generates daily points of interest with Groq, combines them with weather and budget context, stores daily itinerary items, and stores a full itinerary plan.
-- Maps agent: uses Amazon Location Service Routes to calculate origin-to-destination route distance, duration, estimated cost, steps, and route geometry.
+- Maps agent: uses Amazon Location Service Routes to calculate origin-to-destination route distance, duration, estimated cost, turn-by-turn steps, and route geometry.
 
 ### Frontend Experience
 
@@ -56,8 +57,8 @@ The frontend is a Next.js dashboard with authentication, trip creation, trip com
 - Hotels screen with sorting by low price, high price, or rating, hotel details, amenities, thumbnails, and booking links.
 - Budget screen with budget summary, category breakdown, budget items, totals, and a Recharts pie chart.
 - Itinerary screen with expandable daily itinerary sections, weather hints, costs, PDF download, and Google Calendar sync controls.
-- Routes screen with route cards, turn-by-turn steps, distance/duration/cost, and a Leaflet map modal using OpenStreetMap tiles.
-- Events screen with category filters, recommended-only toggle, event cards, venue/location/date details, and booking links.
+- Routes screen with route cards, turn-by-turn steps, distance/duration/cost, and a Leaflet map modal using OpenStreetMap tiles. If a completed trip has no stored route, the backend calculates one on demand with AWS Location.
+- Events screen with category filters, recommended-only toggle, event cards, venue/location/date details, booking links, and a clean empty state when SerpApi returns no events.
 - News screen with destination news cards, thumbnails, source/date metadata, and article links.
 - Floating SmartTravello AI chatbot connected to the protected backend `/api/chat` route.
 - Dark/light theme context with persistence in `localStorage`.
@@ -143,7 +144,7 @@ Each agent run is logged to `AgentTask`, and the final response includes success
 ### Prerequisites
 
 - Node.js and npm. This workspace was inspected with Node `v20.20.2` and npm `10.8.2`.
-- MongoDB, either local, Docker-based, or MongoDB Atlas.
+- MongoDB, preferably MongoDB Atlas or a local replica set. Prisma MongoDB writes can require transactions, and standalone local MongoDB may fail with `P2031`.
 - API keys for the integrations you plan to use.
 
 ### 1. Clone and install dependencies
@@ -159,9 +160,9 @@ cd ../frontend
 npm install
 ```
 
-### 2. Start MongoDB locally with Docker Compose
+### 2. Start or configure MongoDB
 
-The included Compose file starts MongoDB only.
+The included Compose file starts MongoDB only:
 
 ```bash
 cd SmartTravello
@@ -172,6 +173,12 @@ MongoDB will be available at:
 
 ```text
 mongodb://localhost:27017/smarttravello
+```
+
+For the smoothest local run, use a MongoDB Atlas connection string or configure local MongoDB as a replica set. If you use Atlas, make sure the database name is present in the URL path, for example:
+
+```text
+mongodb+srv://<user>:<password>@<cluster>/smarttravello?appName=Cluster0
 ```
 
 ### 3. Configure environment variables
@@ -235,7 +242,7 @@ http://localhost:3000
 | `GROQ_API_KEY` | Yes | Groq API key used by prompt parsing, chat, train generation, itinerary POIs, and recommendations. |
 | `GROQ_MODEL` | No | Groq model name. Defaults to `llama-3.3-70b-versatile`. |
 | `SERPAPI_KEY` | Yes for data agents | Used by weather, flights, hotels, news, and events agents. |
-| `AWS_LOCATION_API_KEY` or `VITE_AWS_LOCATION_API_KEY` | Yes for routes | Amazon Location Service API key used by the maps agent for route directions. |
+| `AWS_LOCATION_API_KEY` or `VITE_AWS_LOCATION_API_KEY` | Yes for routes | Amazon Location Service public API key used by the maps agent for route directions. API keys usually start with `v1.public.`; AWS access key IDs such as `AKIA...` are not valid here. |
 | `AWS_LOCATION_REGION` or `VITE_AWS_REGION` | Yes for routes | AWS region for Amazon Location Service. Defaults to `us-east-1` in code. |
 | `GEOAPIFY_API_KEY` | Yes for geocoding | Used during trip creation to geocode origin and destination. |
 | `GOOGLE_CLIENT_ID` | Yes for Calendar | Google OAuth client ID for Calendar auth/sync. |
@@ -330,11 +337,11 @@ curl -X POST http://localhost:5000/api/agents/run \
 | `GET` | `/trips/:id/news` | Bearer JWT | Return stored destination news. |
 | `GET` | `/trips/:id/budget` | Bearer JWT | Return budget summary and category breakdown. |
 | `GET` | `/trips/:id/budget/items` | Bearer JWT | Return raw budget items and totals. |
-| `GET` | `/trips/:id/events` | Bearer JWT | Return stored local events. |
+| `GET` | `/trips/:id/events` | Bearer JWT | Return stored local events. Returns `200` with an empty `events` array when none are found. |
 | `GET` | `/trips/:id/itinerary` | Bearer JWT | Return the stored full itinerary plan. |
 | `GET` | `/trips/:id/itinerary/items` | Bearer JWT | Return detailed itinerary items grouped by day. |
 | `GET` | `/trips/:id/itinerary/full` | Bearer JWT | Return both full itinerary and detailed items. |
-| `GET` | `/trips/:id/routes` | Bearer JWT | Return stored route records. |
+| `GET` | `/trips/:id/routes` | Bearer JWT | Return stored route records. If no route exists, the backend attempts to calculate and store one on demand through AWS Location. |
 | `GET` | `/trips/:id/maps` | Bearer JWT | Return origin/destination coordinates and route data. |
 | `GET` | `/trips/:id/orchestrator` | Bearer JWT | Return legacy orchestrator summary data if present. |
 
@@ -359,6 +366,8 @@ Authorization: Bearer <jwt>
 X-Google-Access-Token: <google-access-token>
 X-Google-Refresh-Token: <google-refresh-token>
 ```
+
+The itinerary page currently uses the Express backend endpoint at `http://localhost:5000/api/calendar/sync`. A similar Next.js API route exists under `frontend/src/app/api/calender/sync/route.ts`, but the itinerary page does not currently post to it.
 
 ### Cron and Recommendation Testing
 
@@ -594,8 +603,7 @@ npm run build
 - Replace hardcoded backend CORS origin with an environment-based allowlist.
 - Mount `backend/src/routes/emailRoutes.js` in `backend/app.js` if manual itinerary email sending should be public API.
 - Add or remove schema/controller references for fields that are used in code but missing from the Prisma schema, such as `last_calendar_sync` and `children`.
-- Review agent Zod validators that use `z.string().uuid()` for `tripId`; the Prisma MongoDB schema uses ObjectId strings.
-- Implement or remove unsupported `mapsAgent` actions that reference undefined helper functions (`nearby`, `place_details`, `distance_matrix`).
+- Decide whether unsupported `mapsAgent` actions (`nearby`, `place_details`, `distance_matrix`) should be implemented with AWS Location or removed from the public agent schema. The active route flow uses `directions`.
 - Add backend tests; `backend/package.json` currently has a placeholder test script.
 - Align the trip comparison UI with the backend summary response; the UI references precipitation data that the current summary endpoint does not return.
 - Normalize the frontend calendar route folder spelling from `calender` to `calendar` if the local route is kept.
