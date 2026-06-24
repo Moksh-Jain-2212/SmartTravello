@@ -39,7 +39,7 @@ The frontend is a Next.js dashboard with authentication, trip creation, trip com
 - Budget agent: calculates a category-level trip budget using available flight and hotel data, with estimated fallback costs.
 - Events agent: fetches destination events through SerpApi Google Events and stores them in the database.
 - Itinerary agent: generates daily points of interest with Groq, combines them with weather and budget context, stores daily itinerary items, and stores a full itinerary plan.
-- Maps agent: uses Google Maps Directions to calculate origin-to-destination route distance, duration, estimated cost, steps, and polyline data.
+- Maps agent: uses Amazon Location Service Routes to calculate origin-to-destination route distance, duration, estimated cost, steps, and route geometry.
 
 ### Frontend Experience
 
@@ -92,7 +92,7 @@ Screenshots are not committed yet. Add images to `docs/screenshots/` and update 
 | Database | MongoDB, Prisma Client, Prisma schema with MongoDB ObjectId models |
 | Authentication | bcrypt password hashing, JSON Web Tokens, protected Express middleware, NextAuth Google provider for Calendar OAuth |
 | AI | Groq through the OpenAI-compatible SDK client |
-| External APIs | SerpApi, Google Maps Directions API, Geoapify Geocoding API, Google Calendar API |
+| External APIs | SerpApi, Amazon Location Service Routes API, Geoapify Geocoding API, Google Calendar API |
 | Email and jobs | Nodemailer with Gmail SMTP, node-cron scheduled jobs |
 | Documents | PDFKit for itinerary PDFs |
 | Local infrastructure | Docker Compose for MongoDB |
@@ -108,7 +108,7 @@ flowchart LR
     Prisma --> MongoDB[(MongoDB)]
     API --> Groq[Groq LLM]
     API --> SerpApi[SerpApi]
-    API --> GoogleMaps[Google Maps API]
+    API --> AWSLocation[Amazon Location Service]
     API --> Geoapify[Geoapify]
     API --> GoogleCalendar[Google Calendar API]
     API --> Email[Gmail SMTP]
@@ -235,7 +235,8 @@ http://localhost:3000
 | `GROQ_API_KEY` | Yes | Groq API key used by prompt parsing, chat, train generation, itinerary POIs, and recommendations. |
 | `GROQ_MODEL` | No | Groq model name. Defaults to `llama-3.3-70b-versatile`. |
 | `SERPAPI_KEY` | Yes for data agents | Used by weather, flights, hotels, news, and events agents. |
-| `GOOGLE_MAPS_API_KEY` | Yes for routes | Used by the maps agent for Google Directions. |
+| `AWS_LOCATION_API_KEY` or `VITE_AWS_LOCATION_API_KEY` | Yes for routes | Amazon Location Service API key used by the maps agent for route directions. |
+| `AWS_LOCATION_REGION` or `VITE_AWS_REGION` | Yes for routes | AWS region for Amazon Location Service. Defaults to `us-east-1` in code. |
 | `GEOAPIFY_API_KEY` | Yes for geocoding | Used during trip creation to geocode origin and destination. |
 | `GOOGLE_CLIENT_ID` | Yes for Calendar | Google OAuth client ID for Calendar auth/sync. |
 | `GOOGLE_CLIENT_SECRET` | Yes for Calendar | Google OAuth client secret for Calendar auth/sync. |
@@ -443,7 +444,7 @@ The active Prisma schema is `backend/prisma/schema.prisma`. It uses MongoDB with
 | `Itinerary` | One-to-one full itinerary plan for a trip, including tool name, summary, and full JSON plan. |
 | `ItineraryItem` | Day-level itinerary records with title, description, times, location, category, cost, and ordering. |
 | `WeatherData` | Daily weather forecast records linked to a trip. |
-| `Route` | Route distance, duration, cost, route metadata, and full Google Maps response data. |
+| `Route` | Route distance, duration, cost, route metadata, and full Amazon Location route response data. |
 | `Event` | Destination event records with venue, dates, category, price, booking URL, recommendation metadata, and raw API JSON. |
 | `BudgetItem` | Budget category records with estimated amount, actual amount, status, and notes. |
 | `AgentTask` | Execution log for each planning agent, including input data, result data, status, timestamps, and errors. |

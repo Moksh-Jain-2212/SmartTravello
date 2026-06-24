@@ -121,11 +121,11 @@ export default function RoutesPage() {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch routes');
-      }
-
       const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.message || data?.error || 'Failed to fetch routes');
+      }
       
       if (data && data.error) {
         setError(data.error);

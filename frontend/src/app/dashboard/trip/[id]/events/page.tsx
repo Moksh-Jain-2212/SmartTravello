@@ -91,11 +91,12 @@ export default function EventsPage() {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error('Failed to fetch events');
+        throw new Error(data?.message || data?.error || 'Failed to fetch events');
       }
 
-      const data = await response.json();
       setEventsData(data);
     } catch (err) {
       console.error('Error fetching events:', err);

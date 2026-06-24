@@ -1,5 +1,6 @@
 // src/controllers/trip.controller.js
 import prisma from '../config/db.js';
+import { mapsAgent } from '../agents/mapsAgent.js';
 
 // ============================================
 // TRIP MANAGEMENT
@@ -575,18 +576,12 @@ export const getEvents = async (req, res) => {
       orderBy: { start_datetime: 'asc' },
     });
 
-    if (events.length === 0) {
-      return res.status(404).json({ 
-        error: 'No events found for this trip',
-        message: 'Run the events agent first to fetch events'
-      });
-    }
-
     res.json({ 
       tripId: id, 
       totalEvents: events.length,
       recommendedCount: events.filter(e => e.is_recommended).length,
-      events 
+      events,
+      message: events.length === 0 ? 'No events found for this trip' : undefined
     });
   } catch (error) {
     console.error('Error fetching events:', error);
@@ -760,16 +755,25 @@ export const getRoutes = async (req, res) => {
       return res.status(404).json({ error: 'Trip not found' });
     }
 
-    const routes = await prisma.route.findMany({ 
+    let routes = await prisma.route.findMany({ 
       where: { trip_id: id },
       orderBy: { created_at: 'asc' }
     });
 
     if (routes.length === 0) {
-      return res.status(404).json({ 
-        error: 'No routes found for this trip',
-        message: 'Run the maps agent first to calculate routes'
-      });
+      try {
+        await mapsAgent.execute({ tripId: id, action: 'directions', mode: 'driving' });
+        routes = await prisma.route.findMany({
+          where: { trip_id: id },
+          orderBy: { created_at: 'asc' }
+        });
+      } catch (routeError) {
+        console.error('Error calculating route on demand:', routeError);
+        return res.status(502).json({
+          error: 'No routes found for this trip',
+          message: routeError.message || 'Unable to calculate route'
+        });
+      }
     }
 
     res.json({
