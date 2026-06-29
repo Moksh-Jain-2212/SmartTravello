@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Calendar, MapPin, Users, Clock, Trash2, Eye, Plus, Loader2 } from 'lucide-react';
+import { Calendar, MapPin, Users, Clock, Trash2, Eye, Plus, Loader2, Sun, Moon, XCircle } from 'lucide-react';
 import { useTheme } from '@/app/context/ThemeContext';
-import { Sun, Moon, XCircle, Link } from "lucide-react";
+import { useRouter } from 'next/navigation';
 
 // --- Interface Definitions for Type Safety ---
 
@@ -35,11 +35,13 @@ interface DeleteModalState {
 const API_BASE_URL = 'http://localhost:5000/api';
 
 const Trips: React.FC = () => {
+  const router = useRouter();
   // Use explicit types for state
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [deleteModal, setDeleteModal] = useState<DeleteModalState>({ show: false, tripId: null, tripTitle: '' });
+  const [deletingTripId, setDeletingTripId] = useState<string | null>(null);
     const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
@@ -85,11 +87,13 @@ const Trips: React.FC = () => {
 
   // Explicitly type tripId as string
   const handleDeleteTrip = async (tripId: string) => {
-    setDeleteModal({ show: false, tripId: null, tripTitle: '' }); // Close modal immediately
+    setDeletingTripId(tripId);
+    setError(null);
+
     try {
       const token = localStorage.getItem('token');
       if (!token) {
-        setError('Authentication token missing. Please log in.');
+        router.push('/login');
         return;
       }
 
@@ -101,17 +105,21 @@ const Trips: React.FC = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to delete trip on the server.');
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error || 'Failed to delete trip on the server.');
       }
 
       // Update state to remove the deleted trip
       setTrips(prevTrips => prevTrips.filter(trip => trip.id !== tripId));
+      setDeleteModal({ show: false, tripId: null, tripTitle: '' });
       setError(null);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Deletion failed.';
       // Using setError instead of alert()
       setError('Error deleting trip: ' + message); 
       console.error('Error deleting trip:', err);
+    } finally {
+      setDeletingTripId(null);
     }
   };
 
@@ -189,7 +197,11 @@ const Trips: React.FC = () => {
             </p>
           </div>
 
-          <button className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold px-6 py-3 rounded-xl flex items-center gap-2 transition-all duration-300 shadow-lg hover:shadow-purple-400/30">
+          <button
+            type="button"
+            onClick={() => router.push('/dashboard/new')}
+            className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold px-6 py-3 rounded-xl flex items-center gap-2 transition-all duration-300 shadow-lg hover:shadow-purple-400/30"
+          >
             <Plus size={18} />
             New Trip
           </button>
@@ -210,7 +222,11 @@ const Trips: React.FC = () => {
             <p className="text-gray-500 dark:text-gray-400 mb-6">
               Start planning your next adventure today!
             </p>
-            <button className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium px-6 py-3 rounded-xl inline-flex items-center gap-2 transition-all shadow-lg">
+            <button
+              type="button"
+              onClick={() => router.push('/dashboard/new')}
+              className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium px-6 py-3 rounded-xl inline-flex items-center gap-2 transition-all shadow-lg"
+            >
               <Plus size={18} />
               Plan Your First Trip
             </button>
@@ -309,12 +325,100 @@ const Trips: React.FC = () => {
                 </div>
 
                 {/* ACTIONS */}
-                
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    title="View trip"
+                    aria-label={`View ${trip.title}`}
+                    onClick={() => router.push(`/dashboard/trip/${trip.id}/overview`)}
+                    className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg border border-indigo-200 px-4 py-2 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-950"
+                  >
+                    <Eye size={16} />
+                    View
+                  </button>
+                  <button
+                    type="button"
+                    title="Delete trip"
+                    aria-label={`Delete ${trip.title}`}
+                    disabled={deletingTripId === trip.id}
+                    onClick={() => setDeleteModal({ show: true, tripId: trip.id, tripTitle: trip.title })}
+                    className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950"
+                  >
+                    {deletingTripId === trip.id ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <Trash2 size={16} />
+                    )}
+                    Delete
+                  </button>
+                </div>
               </div>
             </div>
           ))}
         </div>
       </div>
+
+      {deleteModal.show && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-trip-title"
+        >
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-gray-900">
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-300">
+                  <Trash2 size={20} />
+                </div>
+                <div>
+                  <h2 id="delete-trip-title" className="text-lg font-bold text-gray-900 dark:text-white">
+                    Delete trip?
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    This action cannot be undone.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                title="Close"
+                aria-label="Close delete confirmation"
+                onClick={() => setDeleteModal({ show: false, tripId: null, tripTitle: '' })}
+                className="rounded-full p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+              >
+                <XCircle size={22} />
+              </button>
+            </div>
+
+            <p className="mb-6 text-sm text-gray-700 dark:text-gray-300">
+              Are you sure you want to delete <span className="font-semibold">{deleteModal.tripTitle}</span>?
+            </p>
+
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setDeleteModal({ show: false, tripId: null, tripTitle: '' })}
+                disabled={deletingTripId === deleteModal.tripId}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => deleteModal.tripId && handleDeleteTrip(deleteModal.tripId)}
+                disabled={!deleteModal.tripId || deletingTripId === deleteModal.tripId}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {deletingTripId === deleteModal.tripId && (
+                  <Loader2 size={16} className="animate-spin" />
+                )}
+                Delete Trip
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       
     </div>

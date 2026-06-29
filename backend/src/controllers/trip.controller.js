@@ -161,6 +161,17 @@ export const deleteTrip = async (req, res) => {
       return res.status(404).json({ error: 'Trip not found' });
     }
 
+    await Promise.all([
+      prisma.itineraryItem.deleteMany({ where: { trip_id: id } }),
+      prisma.itinerary.deleteMany({ where: { trip_id: id } }),
+      prisma.weatherData.deleteMany({ where: { trip_id: id } }),
+      prisma.route.deleteMany({ where: { trip_id: id } }),
+      prisma.event.deleteMany({ where: { trip_id: id } }),
+      prisma.budgetItem.deleteMany({ where: { trip_id: id } }),
+      prisma.agentTask.deleteMany({ where: { trip_id: id } }),
+      prisma.notification.deleteMany({ where: { trip_id: id } }),
+    ]);
+
     await prisma.trip.delete({ where: { id } });
 
     res.json({ message: 'Trip deleted successfully' });
